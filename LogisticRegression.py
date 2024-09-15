@@ -10,6 +10,37 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import sys
 
+
+#################################### Common part ##############################
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Generate random data with float values
+num_samples = 200
+hours_studied = np.random.uniform(1.0, 10.0, size=num_samples)  # Random hours between 1.0 and 10.0
+hours_slept = np.random.uniform(1.0, 10.0, size=num_samples)    # Random hours between 4.0 and 8.0
+
+# Determine if the student passed or failed
+# Rule: Pass if both hours_studied and hours_slept are above their median values
+median_studied = np.median(hours_studied)-1
+median_slept = np.median(hours_slept)-3
+passed = ((hours_studied > median_studied) & (hours_slept > median_slept)).astype(int)
+
+# Create a DataFrame
+data = pd.DataFrame({
+    'Hours_Studied': hours_studied,
+    'Hours_Slept': hours_slept,
+    'Passed': passed
+})
+
+learning_rate = 0.01
+num_iterations = 3000
+
+###############################################################################
+############# Binary Logistic regression manual implementation ################
+###############################################################################
+
 def sigmoid(z):
     return 1.0 / (1 + np.exp(-z))
 
@@ -19,7 +50,7 @@ def predict(features, weights):
   that the class label == 1
   '''
   z = np.dot(features, weights)
-  return sigmoid(z) 
+  return sigmoid(z)
 
 def cost_function(features, labels, weights):
     '''
@@ -107,29 +138,9 @@ def train(features, labels, weights, lr, iters):
 
     return weights, cost_history
 
-# Set random seed for reproducibility
-np.random.seed(42)
-
-# Generate random data with float values
-num_samples = 200
-hours_studied = np.random.uniform(1.0, 10.0, size=num_samples)  # Random hours between 1.0 and 10.0
-hours_slept = np.random.uniform(1.0, 10.0, size=num_samples)    # Random hours between 4.0 and 8.0
-
-# Determine if the student passed or failed
-# Rule: Pass if both hours_studied and hours_slept are above their median values
-median_studied = np.median(hours_studied)-1
-median_slept = np.median(hours_slept)-3
-passed = ((hours_studied > median_studied) & (hours_slept > median_slept)).astype(int)
-
-# Create a DataFrame
-data = pd.DataFrame({
-    'Hours_Studied': hours_studied,
-    'Hours_Slept': hours_slept,
-    'Passed': passed
-})
-
-learning_rate = 0.01
-num_iterations = 3000
+def accuracy(predicted_labels, actual_labels):
+    diff = predicted_labels - actual_labels
+    return 1.0 - (float(np.count_nonzero(diff)) / len(diff))
 
 weights = np.zeros((3, 1))
 features = data[['Hours_Studied', 'Hours_Slept']].values
@@ -139,7 +150,12 @@ features = np.append(bias, features, axis=1)
 
 weights, cost_history = train(features,labels,weights,learning_rate, num_iterations)
 
-print(weights)
+print(f'Weights = {weights}')
+
+predictions = predict(features, weights)
+acc = accuracy(predictions, labels)
+
+print(f'Accuracy = {acc}')
 
 # Plotting decision boundary
 plt.figure(figsize=(10, 6))
@@ -170,95 +186,59 @@ plt.title('cost over iteraton')
 plt.grid(True)
 plt.show()
 
-sys.exit(0)
 
 ###############################################################################
- # Prepare the data
+################ Binary Logistic regression Using package #####################
+###############################################################################
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix
+
+# Prepare the data (X: features, y: labels)
 X = data[['Hours_Studied', 'Hours_Slept']].values
-y = data['Passed'].values
+y = data['Passed'].values.reshape(-1, 1)
 
-# Add a bias column with ones
-X = np.hstack((np.ones((X.shape[0], 1)), X))  # Add column of ones for bias term
+# Split the dataset into training and testing sets (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Initialize parameters
-weights = np.zeros(X.shape[1])  # One weight for each feature plus bias
+# Create a logistic regression model
+log_reg = LogisticRegression()
 
+# Train the model on the training data
+log_reg.fit(X_train, y_train.ravel())  # y_train.ravel() to flatten the array
 
-# Sigmoid function
-def sigmoid(z):
-    return 1 / (1 + np.exp(-z))
+# Predict on the test data
+y_pred = log_reg.predict(X_test)
 
-# Compute cost function
-def compute_cost(y, y_pred):
-    m = len(y)
-    return -np.sum(y * np.log(y_pred) + (1 - y) * np.log(1 - y_pred)) / m
+# Calculate accuracy
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy: {accuracy * 100:.2f}%")
 
-cost_history = []
-
-# Training loop
-for _ in range(num_iterations):
-    # Forward propagation
-    z = np.dot(X, weights)
-    y_pred = sigmoid(z)
-    
-    # Compute cost
-    cost = compute_cost(y, y_pred)
-    cost_history.append(cost)
-    
-    # Backward propagation
-    gradient = np.dot(X.T, (y_pred - y)) / len(y)
-    weights -= learning_rate * gradient
-    
-    # Optionally print cost every 100 iterations
-    if _ % 100 == 0:
-        print(f"Iteration {_}: Cost {cost}")
-
-# Display final weights
-print("Final weights:", weights)
-
-# Predict using the model
-# def predict(X, weights):
-#     z = np.dot(X, weights)
-#     return sigmoid(z) >= 0.5
-
-
+# Display the confusion matrix
+conf_matrix = confusion_matrix(y_test, y_pred)
+print("Confusion Matrix:")
+print(conf_matrix)
 
 # Plotting decision boundary
-# plt.figure(figsize=(10, 6))
-# plt.scatter(data[data['Passed'] == 1]['Hours_Studied'], 
-#             data[data['Passed'] == 1]['Hours_Slept'], 
-#             color='blue', marker='o', label='Passed', alpha=0.6)  # Circle marker
-# plt.scatter(data[data['Passed'] == 0]['Hours_Studied'], 
-#             data[data['Passed'] == 0]['Hours_Slept'], 
-#             color='red', marker='s', label='Failed', alpha=0.6)  # Square marker
+plt.figure(figsize=(10, 6))
+plt.scatter(data[data['Passed'] == 1]['Hours_Slept'],
+            data[data['Passed'] == 1]['Hours_Studied'], 
+            color='blue', marker='o', label='Passed', alpha=0.6)  # Circle marker
+plt.scatter(data[data['Passed'] == 0]['Hours_Slept'], 
+            data[data['Passed'] == 0]['Hours_Studied'],             
+            color='red', marker='s', label='Failed', alpha=0.6)  # Square marker
 
-# # Decision boundary
-# x_values = np.linspace(data['Hours_Studied'].min(), data['Hours_Studied'].max(), 100)
-# y_values = -(weights[0] + weights[1] * x_values) / weights[2]
-# plt.plot(x_values, y_values, 'b--', label='Decision Boundary')
+# Decision boundary
+x_values = np.linspace(data['Hours_Slept'].min(), data['Hours_Slept'].max(), 100)
+y_values = -(log_reg.intercept_ + log_reg.coef_[0][1] * x_values) / log_reg.coef_[0][0]
+plt.plot(x_values, y_values, 'b--', label='Decision Boundary')
 
-# plt.xlabel('Hours Studied')
-# plt.ylabel('Hours Slept')
-# plt.title('Scatter Plot with Decision Boundary')
-# plt.legend()
-# plt.grid(True)
-# plt.show()
-
-plt.figure(figsize=(10,6))
-plt.plot(range(num_iterations),cost_history,color='blue')
-plt.xlabel('iterations')
-plt.ylabel('cost')
-plt.title('cost over iteraton')
+plt.xlabel('Hours Slept')
+plt.ylabel('Hours Studied')
+plt.title('Scatter Plot with Decision Boundary')
+plt.legend()
 plt.grid(True)
 plt.show()
 
 
-###############################################################################
-
-
-
-
-
-
-
-sys.exit(1)
