@@ -22,7 +22,7 @@ from sklearn.model_selection import train_test_split
 # 2 for Simple regression using package
 # 3 for Multivariable regression manual implementation
 # 4 for Multivariable regression using package
-Module = 3
+Module = 2
 
 #################################### Common part ##############################
 
@@ -62,7 +62,7 @@ multiclass_data = pd.DataFrame({
 })
 
 learning_rate = 0.01
-num_iterations = 3000
+num_iterations = 50000
 
 ###############################################################################
 ############# Binary Logistic regression manual implementation ################
@@ -79,7 +79,8 @@ if Module == 1:
       that the class label == 1
       '''
       z = np.dot(features, weights)
-      return sigmoid(z)
+      y_pred = sigmoid(z)
+      return y_pred
     
     def cost_function(features, labels, weights):
         '''
@@ -155,25 +156,37 @@ if Module == 1:
                 print("iter: "+str(i) + " cost: "+str(cost))
     
         return weights, cost_history
-    
-    def accuracy(predicted_labels, actual_labels):
-        diff = predicted_labels - actual_labels
-        return 1.0 - (float(np.count_nonzero(diff)) / len(diff))
+        
+    def accuracy(predicted_probabilities, actual_labels):
+        # Threshold probabilities at 0.5 to get binary predictions
+        predicted_labels = np.where(predicted_probabilities >= 0.5, 1, 0)
+        
+        # Calculate the fraction of correct predictions
+        correct_predictions = np.sum(predicted_labels == actual_labels)
+        
+        # Accuracy = correct predictions / total observations
+        accuracy = correct_predictions / len(actual_labels)
+        
+        return accuracy
     
     weights = np.zeros((3, 1))
     features = data[['Hours_Studied', 'Hours_Slept']].values
     labels = data['Passed'].values.reshape(-1, 1)
-    bias = np.ones((len(data),1))
-    features = np.append(bias, features, axis=1)
     
-    weights, cost_history = train(features,labels,weights,learning_rate, num_iterations)
+    features_train, features_test, labels_train, labels_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+    train_bias = np.ones((len(features_train),1))
+    test_bias = np.ones((len(features_test),1))    
+    features_train = np.append(train_bias, features_train, axis=1)
+    features_test = np.append(test_bias, features_test, axis=1)
+    
+    weights, cost_history = train(features_train,labels_train,weights,learning_rate, num_iterations)
     
     print(f'Weights = {weights}')
     
-    predictions = predict(features, weights)
-    acc = accuracy(predictions, labels)
+    predicted_probabilities = predict(features_test, weights)
+    acc = accuracy(predicted_probabilities, labels_test)
     
-    print(f'Accuracy = {acc}')
+    print(f"Test Accuracy: {acc * 100:.2f}%")
     
     # Plotting decision boundary
     plt.figure(figsize=(10, 6))
@@ -229,7 +242,7 @@ elif Module == 2:
     
     # Calculate accuracy
     accuracy = accuracy_score(y_test, y_pred)
-    print(f"Accuracy: {accuracy * 100:.2f}%")
+    print(f"Test Accuracy: {accuracy * 100:.2f}%")
     
     # Display the confusion matrix
     conf_matrix = confusion_matrix(y_test, y_pred)
